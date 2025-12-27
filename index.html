@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Max Subarray Visualizer</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h2 { margin-bottom: 5px; }
+        p.subtitle { color: #666; margin-bottom: 30px; font-size: 0.9rem; }
+
+        /* Array Visualization */
+        .array-container {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .box {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--card-bg);
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .box span.index-label {
+            position: absolute;
+            bottom: -25px;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            font-weight: normal;
+        }
+
+        /* States */
+        .box.active {
+            border-color: var(--primary);
+            transform: translateY(-5px) scale(1.1);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+            z-index: 10;
+        }
+
+        .box.accumulating {
+            background-color: #d1fae5; /* Light green bg */
+            border-color: var(--success);
+            color: #065f46;
+        }
+
+        .box.discarded {
+            opacity: 0.3;
+            background-color: #fee2e2;
+            border-color: var(--danger);
+            transform: scale(0.95);
+        }
+
+        /* Dashboard */
+        .dashboard {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 480px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 4px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+        .stat-value.global { color: var(--success); }
+
+        /* Logic Log */
+        .log-box {
+            background-color: #1f2937;
+            color: #10b981;
+            font-family: 'Courier New', monospace;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            margin-bottom: 20px;
+            line-height: 1.4;
+            border-left: 4px solid var(--success);
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+        }
+
+        #nextBtn {
+            background-color: var(--primary);
+            color: white;
+        }
+        #nextBtn:hover { background-color: #2563eb; }
+        #nextBtn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+        #resetBtn {
+            background-color: #e5e7eb;
+            color: var(--text);
+            max-width: 100px;
+        }
+        #resetBtn:hover { background-color: #d1d5db; }
+
+    </style>
+</head>
+<body>
+
+    <h2>Kadane's Algorithm</h2>
+    <p class="subtitle">O(n) Visualization for [2, 1, -1, 0, 2, 3]</p>
+
+    <div class="array-container" id="arrayContainer"></div>
+
+    <div class="dashboard">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Current Sum</div>
+                <div class="stat-value" id="currentSumVal">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Global Max</div>
+                <div class="stat-value global" id="globalMaxVal">-∞</div>
+            </div>
+        </div>
+
+        <div class="log-box" id="logBox">
+            Ready to start...
+        </div>
+
+        <div class="controls">
+            <button id="nextBtn" onclick="nextStep()">Step Forward</button>
+            <button id="resetBtn" onclick="reset()">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        const nums = [2, 1, -1, 0, 2, 3];
+        
+        // State
+        let index = 0;
+        let currentMax = 0;
+        let globalMax = -Infinity;
+        let step = 0; // 0 = not started, 1 = started
+
+        const container = document.getElementById('arrayContainer');
+        const logBox = document.getElementById('logBox');
+        const nextBtn = document.getElementById('nextBtn');
+
+        function init() {
+            container.innerHTML = '';
+            nums.forEach((n, i) => {
+                const box = document.createElement('div');
+                box.className = 'box';
+                box.innerHTML = `${n}<span class="index-label">${i}</span>`;
+                box.id = `box-${i}`;
+                container.appendChild(box);
+            });
+            updateStats(0, "-∞");
+            logBox.innerText = "Click 'Step Forward' to begin algorithm.";
+            logBox.style.color = "#fbbf24"; // yellow for waiting
+        }
+
+        function updateStats(curr, glob) {
+            document.getElementById('currentSumVal').innerText = curr;
+            document.getElementById('globalMaxVal').innerText = glob;
+        }
+
+        function highlightBox(idx, type) {
+            const box = document.getElementById(`box-${idx}`);
+            if(type === 'active') box.classList.add('active');
+            if(type === 'accumulating') box.classList.add('accumulating');
+            if(type === 'discarded') box.classList.add('discarded');
+        }
+
+        function nextStep() {
+            logBox.style.color = "#10b981"; // green for active
+
+            if (index >= nums.length) {
+                logBox.innerText = `Algorithm Finished! Maximum Subarray Sum is ${globalMax}.`;
+                logBox.style.color = "#3b82f6";
+                nextBtn.disabled = true;
+                nextBtn.innerText = "Done";
+                return;
+            }
+
+            // Remove active highlight from previous
+            if(index > 0) document.getElementById(`box-${index-1}`).classList.remove('active');
+            
+            const val = nums[index];
+            highlightBox(index, 'active');
+
+            // --- KADANE LOGIC ---
+            
+            // Logic: Is (current_element) > (current_sum + current_element)?
+            // If yes, restart. If no, extend.
+            
+            let message = "";
+            let actionType = "";
+
+            if (index === 0) {
+                // First element always starts the sequence
+                currentMax = val;
+                globalMax = val;
+                message = `Starting at index 0. Current Sum = ${val}.`;
+                highlightBox(index, 'accumulating');
+            } else {
+                const extendSum = currentMax + val;
+                
+                if (val > extendSum) {
+                    // RESTART
+                    // This happens if currentMax was negative
+                    message = `(${val} > ${extendSum}). Previous sum was negative or dragging us down. Restarting subarray at ${val}.`;
+                    currentMax = val;
+                    
+                    // Visually discard previous
+                    for(let k=0; k < index; k++) {
+                        document.getElementById(`box-${k}`).classList.remove('accumulating');
+                        document.getElementById(`box-${k}`).classList.add('discarded');
+                    }
+                    highlightBox(index, 'accumulating');
+                    
+                } else {
+                    // EXTEND
+                    message = `Adding ${val} to previous sum (${currentMax}). New Sum: ${extendSum}.`;
+                    currentMax = extendSum;
+                    highlightBox(index, 'accumulating');
+                }
+
+                if (currentMax > globalMax) {
+                    globalMax = currentMax;
+                    message += " New Global Max!";
+                }
+            }
+
+            updateStats(currentMax, globalMax);
+            logBox.innerText = message;
+            
+            index++;
+        }
+
+        function reset() {
+            index = 0;
+            currentMax = 0;
+            globalMax = -Infinity;
+            nextBtn.disabled = false;
+            nextBtn.innerText = "Step Forward";
+            init();
+        }
+
+        // Init on load
+        init();
+
+    </script>
+</body>
+</html>
